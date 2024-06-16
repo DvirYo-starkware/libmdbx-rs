@@ -10,10 +10,9 @@ use indexmap::IndexSet;
 use libc::{c_uint, c_void};
 use parking_lot::Mutex;
 use std::{
-    fmt,
-    fmt::Debug,
+    fmt::{self, Debug},
     marker::PhantomData,
-    mem::size_of,
+    mem::{self, size_of},
     ptr, result, slice,
     sync::{mpsc::sync_channel, Arc},
 };
@@ -161,7 +160,15 @@ where
         let txnlck = self.txn.lock();
         let txn = *txnlck;
         let result = if K::ONLY_CLEAN {
-            mdbx_result(unsafe { ffi::mdbx_txn_commit_ex(txn, ptr::null_mut()) })
+            mdbx_result(unsafe {
+                let mut tx_info = TxnInfo::new();
+                ffi::mdbx_txn_info(txn, tx_info.mdb_txn_info(), false);
+                tx_info.print_info();
+                let mut commit_latency = CommitLatency::new();
+                let x = ffi::mdbx_txn_commit_ex(txn, commit_latency.mdb_commit_latency());
+                commit_latency.print_info();
+                x
+            })
         } else {
             let (sender, rx) = sync_channel(0);
             self.db
@@ -489,4 +496,46 @@ where
     K: TransactionKind,
     E: DatabaseKind,
 {
+}
+
+#[repr(transparent)]
+pub struct CommitLatency(ffi::MDBX_commit_latency);
+
+impl CommitLatency {
+    /// Create a new CommitLatency with zero'd inner struct `ffi::MDBX_commit_latency`.
+    pub(crate) fn new() -> CommitLatency {
+        unsafe { CommitLatency(mem::zeroed()) }
+    }
+
+    /// Returns a mut pointer to `ffi::MDBX_commit_latency`.
+    pub(crate) fn mdb_commit_latency(&mut self) -> *mut ffi::MDBX_commit_latency {
+        &mut self.0
+    }
+}
+
+impl CommitLatency {
+    pub fn print_info(&self) {
+        println!("{:#?}", self.0);
+    }
+}
+
+#[repr(transparent)]
+pub struct TxnInfo(ffi::MDBX_txn_info);
+
+impl TxnInfo {
+    /// Create a new TxnInfo with zero'd inner struct `ffi::MDBX_txn_info`.
+    pub(crate) fn new() -> TxnInfo {
+        unsafe { TxnInfo(mem::zeroed()) }
+    }
+
+    /// Returns a mut pointer to `ffi::MDBX_txn_info`.
+    pub(crate) fn mdb_txn_info(&mut self) -> *mut ffi::MDBX_txn_info {
+        &mut self.0
+    }
+}
+
+impl TxnInfo {
+    pub fn print_info(&self) {
+        println!("{:#?}", self.0);
+    }
 }

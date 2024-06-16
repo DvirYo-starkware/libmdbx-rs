@@ -1,3 +1,4 @@
+use crate::transaction::{CommitLatency, TxnInfo};
 use crate::{
     error::{mdbx_result, Error, Result},
     flags::DatabaseFlags,
@@ -541,11 +542,21 @@ where
                                 .unwrap();
                         }
                         TxnManagerMessage::Commit { tx, sender } => {
+                            let mut tx_info = TxnInfo::new();
+                            unsafe {
+                                ffi::mdbx_txn_info(tx.0, tx_info.mdb_txn_info(), false);
+                            }
+                            tx_info.print_info();
+                            let mut commit_latency = CommitLatency::new();
                             sender
                                 .send(mdbx_result(unsafe {
-                                    ffi::mdbx_txn_commit_ex(tx.0, ptr::null_mut())
+                                    ffi::mdbx_txn_commit_ex(
+                                        tx.0,
+                                        commit_latency.mdb_commit_latency(),
+                                    )
                                 }))
                                 .unwrap();
+                            commit_latency.print_info();
                         }
                     },
                     Err(_) => return,
