@@ -515,7 +515,7 @@ impl CommitLatency {
 
 impl CommitLatency {
     pub fn print_info(&self) {
-        println!("{:#?}", self.0);
+        tracing::debug!("{:?}", self.0);
     }
 }
 
@@ -536,6 +536,6 @@ impl TxnInfo {
 
 impl TxnInfo {
     pub fn print_info(&self) {
-        println!("{:#?}", self.0);
+        tracing::debug!("{:?}", self.0);
     }
 }
